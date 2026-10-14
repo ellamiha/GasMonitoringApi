@@ -1,14 +1,341 @@
 {
   "info": {
     "_postman_id": "8b67d061-11f5-408b-814f-32ffaed6ea03",
-    "name": "GasMonitoringApi — полная проверка",
+    "name": "GasMonitoringApi — полная проверка v1.1",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
-    "description": "Коллекция для текущего GasMonitoringApi. Запускать целиком и по порядку, 1 итерация. Создаёт отдельную скважину и измерение, проверяет CRUD, три отчёта и права, затем удаляет свои записи. Исходные записи не изменяет. baseUrl = http://localhost:5052. Токены сохраняются отдельно после входа. Не задавайте одноимённые переменные окружения: они перекрывают переменные коллекции."
+    "description": "SQLite, EF Core, DTO и пользователи в БД. Перед запуском создайте администратора командой dotnet run -- --create-admin. В Variables заполните adminLogin и adminPassword своими значениями, выберите No Environment. Запускайте все папки по порядку, 1 итерация. В начале автоматически регистрируется отдельный обычный пользователь. Его логин и пароль сохраняются в userLogin и userPassword для проверки повторного входа, в том числе после перезапуска API. Скважина и измерение создаются и удаляются тестами; пользователь остаётся в БД. Перед экспортом коллекции очистите пароли и токены. baseUrl: http://localhost:5052."
   },
   "auth": {
     "type": "noauth"
   },
   "item": [
+    {
+      "name": "0. Регистрация и проверка DTO",
+      "item": [
+        {
+          "name": "00.1 Регистрация обычного пользователя",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "auth": {
+              "type": "noauth"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/register",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "register"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"login\": \"{{userLogin}}\",\n  \"password\": \"{{userPassword}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "(function () {",
+                  "    if (!pm.collectionVariables.get(\"adminLogin\") || !pm.collectionVariables.get(\"adminPassword\")) throw new Error(\"Сначала создайте администратора и заполните adminLogin и adminPassword в Variables коллекции.\");",
+                  "    pm.collectionVariables.set(\"userLogin\", \"pmuser_\" + pm.variables.replaceIn(\"{{$randomUUID}}\").replace(/-/g, \"\"));",
+                  "    pm.collectionVariables.set(\"userPassword\", pm.variables.replaceIn(\"{{$randomUUID}}\") + \"a1\");",
+                  "    pm.collectionVariables.unset(\"userToken\");",
+                  "    pm.collectionVariables.unset(\"adminToken\");",
+                  "})();"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "(function () {",
+                  "    pm.test(\"HTTP 201\", function () { pm.response.to.have.status(201); });",
+                  "    const data = pm.response.json();",
+                  "    pm.test(\"Создана роль User, пароль не возвращён\", function () { pm.expect(data.role === \"User\" && data.login === pm.collectionVariables.get(\"userLogin\") && Number.isInteger(data.id) && !(\"password\" in data) && !(\"passwordHash\" in data)).to.eql(true); });",
+                  "})();"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "00.2 Повторная регистрация 409",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "auth": {
+              "type": "noauth"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/register",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "register"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"login\": \"{{userLogin}}\",\n  \"password\": \"{{userPassword}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "(function () {",
+                  "    pm.test(\"HTTP 409\", function () { pm.response.to.have.status(409); });",
+                  "})();"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "00.3 Повторный логин в другом регистре 409",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "auth": {
+              "type": "noauth"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/register",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "register"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"login\": \"{{duplicateLogin}}\",\n  \"password\": \"{{userPassword}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "(function () {",
+                  "    pm.collectionVariables.set(\"duplicateLogin\", pm.collectionVariables.get(\"userLogin\").toUpperCase());",
+                  "})();"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "(function () {",
+                  "    pm.test(\"HTTP 409\", function () { pm.response.to.have.status(409); });",
+                  "})();"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "00.4 Регистрация со слабым паролем 400",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "auth": {
+              "type": "noauth"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/register",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "register"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"login\": \"weak-password-test\",\n  \"password\": \"123\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "(function () {",
+                  "    pm.test(\"HTTP 400\", function () { pm.response.to.have.status(400); });",
+                  "})();"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "00.5 Нельзя назначить себе Admin 400",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "auth": {
+              "type": "noauth"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/register",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "register"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"login\": \"{{userLogin}}\",\n  \"password\": \"{{userPassword}}\",\n  \"role\": \"Admin\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "(function () {",
+                  "    pm.test(\"HTTP 400\", function () { pm.response.to.have.status(400); });",
+                  "})();"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "00.6 Неверный формат логина 400",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "auth": {
+              "type": "noauth"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/register",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "register"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"login\": \"bad login\",\n  \"password\": \"{{userPassword}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "(function () {",
+                  "    pm.test(\"HTTP 400\", function () { pm.response.to.have.status(400); });",
+                  "})();"
+                ]
+              }
+            }
+          ],
+          "response": []
+        }
+      ]
+    },
     {
       "name": "1. Вход и основные права",
       "item": [
@@ -20,10 +347,13 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "",
-                  "pm.collectionVariables.unset(\"userToken\");",
-                  "pm.collectionVariables.unset(\"adminToken\");",
-                  "pm.collectionVariables.set(\"testWellName\", \"Postman \" + Date.now());"
+                  "(function () {",
+                  "    if (!pm.collectionVariables.get(\"userLogin\") || !pm.collectionVariables.get(\"userPassword\")) throw new Error(\"Заполните userLogin и userPassword в Variables коллекции.\");",
+                  "    ",
+                  "    pm.collectionVariables.unset(\"userToken\");",
+                  "    pm.collectionVariables.unset(\"adminToken\");",
+                  "    pm.collectionVariables.set(\"testWellName\", \"Postman \" + Date.now());",
+                  "})();"
                 ]
               }
             },
@@ -32,10 +362,12 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
-                  "const data = pm.response.json();",
-                  "pm.test(\"Правильная роль и непустой токен\", function () { pm.expect(data.role === \"User\" && data.login === \"user\" && typeof data.accessToken === \"string\" && data.accessToken.length > 0).to.eql(true); });",
-                  "if (pm.response.code === 200 && data.role === \"User\" && data.accessToken) pm.collectionVariables.set(\"userToken\", data.accessToken);"
+                  "(function () {",
+                  "    pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
+                  "    const data = pm.response.json();",
+                  "    pm.test(\"Правильная роль и непустой токен\", function () { pm.expect(data.role === \"User\" && data.login === pm.collectionVariables.get(\"userLogin\") && typeof data.accessToken === \"string\" && data.accessToken.length > 0).to.eql(true); });",
+                  "    if (pm.response.code === 200 && data.role === \"User\" && data.accessToken) pm.collectionVariables.set(\"userToken\", data.accessToken);",
+                  "})();"
                 ]
               }
             }
@@ -65,7 +397,7 @@
             "description": "Ожидаемый HTTP-статус: 200.",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"login\": \"user\",\n  \"password\": \"user123\"\n}",
+              "raw": "{\n  \"login\": \"{{userLogin}}\",\n  \"password\": \"{{userPassword}}\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -83,8 +415,11 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "",
-                  "pm.collectionVariables.unset(\"adminToken\");"
+                  "(function () {",
+                  "    if (!pm.collectionVariables.get(\"adminLogin\") || !pm.collectionVariables.get(\"adminPassword\")) throw new Error(\"Заполните adminLogin и adminPassword в Variables коллекции.\");",
+                  "    ",
+                  "    pm.collectionVariables.unset(\"adminToken\");",
+                  "})();"
                 ]
               }
             },
@@ -93,10 +428,12 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
-                  "const data = pm.response.json();",
-                  "pm.test(\"Правильная роль и непустой токен\", function () { pm.expect(data.role === \"Admin\" && data.login === \"admin\" && typeof data.accessToken === \"string\" && data.accessToken.length > 0).to.eql(true); });",
-                  "if (pm.response.code === 200 && data.role === \"Admin\" && data.accessToken) pm.collectionVariables.set(\"adminToken\", data.accessToken);"
+                  "(function () {",
+                  "    pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
+                  "    const data = pm.response.json();",
+                  "    pm.test(\"Правильная роль и непустой токен\", function () { pm.expect(data.role === \"Admin\" && data.login.toUpperCase() === pm.collectionVariables.get(\"adminLogin\").toUpperCase() && typeof data.accessToken === \"string\" && data.accessToken.length > 0).to.eql(true); });",
+                  "    if (pm.response.code === 200 && data.role === \"Admin\" && data.accessToken) pm.collectionVariables.set(\"adminToken\", data.accessToken);",
+                  "})();"
                 ]
               }
             }
@@ -126,7 +463,7 @@
             "description": "Ожидаемый HTTP-статус: 200.",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"login\": \"admin\",\n  \"password\": \"admin123\"\n}",
+              "raw": "{\n  \"login\": \"{{adminLogin}}\",\n  \"password\": \"{{adminPassword}}\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -144,7 +481,9 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test(\"HTTP 401\", function () { pm.response.to.have.status(401); });"
+                  "(function () {",
+                  "    pm.test(\"HTTP 401\", function () { pm.response.to.have.status(401); });",
+                  "})();"
                 ]
               }
             }
@@ -178,7 +517,9 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "if (!pm.collectionVariables.get(\"userToken\")) throw new Error(\"Нет userToken: запустите коллекцию с начала.\");"
+                  "(function () {",
+                  "    if (!pm.collectionVariables.get(\"userToken\")) throw new Error(\"Нет userToken: запустите коллекцию с начала.\");",
+                  "})();"
                 ]
               }
             },
@@ -187,9 +528,11 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
-                  "const data = pm.response.json();",
-                  "pm.test(\"Содержимое ответа соответствует ожиданиям\", function () { pm.expect(Array.isArray(data)).to.eql(true); });"
+                  "(function () {",
+                  "    pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
+                  "    const data = pm.response.json();",
+                  "    pm.test(\"Содержимое ответа соответствует ожиданиям\", function () { pm.expect(Array.isArray(data)).to.eql(true); });",
+                  "})();"
                 ]
               }
             }
@@ -230,7 +573,9 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "if (!pm.collectionVariables.get(\"userToken\")) throw new Error(\"Нет userToken: запустите коллекцию с начала.\");"
+                  "(function () {",
+                  "    if (!pm.collectionVariables.get(\"userToken\")) throw new Error(\"Нет userToken: запустите коллекцию с начала.\");",
+                  "})();"
                 ]
               }
             },
@@ -239,7 +584,9 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test(\"HTTP 403\", function () { pm.response.to.have.status(403); });"
+                  "(function () {",
+                  "    pm.test(\"HTTP 403\", function () { pm.response.to.have.status(403); });",
+                  "})();"
                 ]
               }
             }
@@ -293,7 +640,9 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test(\"HTTP 401\", function () { pm.response.to.have.status(401); });"
+                  "(function () {",
+                  "    pm.test(\"HTTP 401\", function () { pm.response.to.have.status(401); });",
+                  "})();"
                 ]
               }
             }
@@ -341,7 +690,9 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test(\"HTTP 401\", function () { pm.response.to.have.status(401); });"
+                  "(function () {",
+                  "    pm.test(\"HTTP 401\", function () { pm.response.to.have.status(401); });",
+                  "})();"
                 ]
               }
             }
@@ -383,6 +734,187 @@
       ]
     },
     {
+      "name": "1.1 Профиль пользователя и проверка токена",
+      "item": [
+        {
+          "name": "07.1 Профиль без токена 401",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "auth": {
+              "type": "noauth"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/me",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "me"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "(function () {",
+                  "    pm.test(\"HTTP 401\", function () { pm.response.to.have.status(401); });",
+                  "})();"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "07.2 Профиль пользователя",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{userToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/me",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "me"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "(function () {",
+                  "    pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
+                  "    const data = pm.response.json();",
+                  "    pm.test(\"Профиль User без хеша пароля\", function () { pm.expect(data.login === pm.collectionVariables.get(\"userLogin\") && data.role === \"User\" && !(\"passwordHash\" in data)).to.eql(true); });",
+                  "})();"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "07.3 Профиль администратора",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/me",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "me"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "(function () {",
+                  "    pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
+                  "    const data = pm.response.json();",
+                  "    pm.test(\"Профиль Admin без хеша пароля\", function () { pm.expect(data.login.toUpperCase() === pm.collectionVariables.get(\"adminLogin\").toUpperCase() && data.role === \"Admin\" && !(\"passwordHash\" in data)).to.eql(true); });",
+                  "})();"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "07.4 Повреждённый токен 401",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{invalidToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/reports/summary",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "reports",
+                "summary"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "(function () {",
+                  "    pm.collectionVariables.set(\"invalidToken\", \"invalid.jwt.token\");",
+                  "})();"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "(function () {",
+                  "    pm.test(\"HTTP 401\", function () { pm.response.to.have.status(401); });",
+                  "})();"
+                ]
+              }
+            }
+          ],
+          "response": []
+        }
+      ]
+    },
+    {
       "name": "2. Скважины: создание, чтение, изменение",
       "item": [
         {
@@ -393,9 +925,11 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
-                  "const data = pm.response.json();",
-                  "pm.test(\"Содержимое ответа соответствует ожиданиям\", function () { pm.expect(Array.isArray(data)).to.eql(true); });"
+                  "(function () {",
+                  "    pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
+                  "    const data = pm.response.json();",
+                  "    pm.test(\"Содержимое ответа соответствует ожиданиям\", function () { pm.expect(Array.isArray(data)).to.eql(true); });",
+                  "})();"
                 ]
               }
             }
@@ -428,9 +962,11 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "if (!pm.collectionVariables.get(\"adminToken\")) throw new Error(\"Нет adminToken: запустите коллекцию с начала.\");",
-                  "pm.collectionVariables.unset(\"wellId\");",
-                  "pm.collectionVariables.unset(\"measurementId\");"
+                  "(function () {",
+                  "    if (!pm.collectionVariables.get(\"adminToken\")) throw new Error(\"Нет adminToken: запустите коллекцию с начала.\");",
+                  "    pm.collectionVariables.unset(\"wellId\");",
+                  "    pm.collectionVariables.unset(\"measurementId\");",
+                  "})();"
                 ]
               }
             },
@@ -439,10 +975,12 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test(\"HTTP 201\", function () { pm.response.to.have.status(201); });",
-                  "const data = pm.response.json();",
-                  "pm.test(\"Содержимое ответа соответствует ожиданиям\", function () { pm.expect(Number.isInteger(data.id) && data.id > 0 && data.name === pm.collectionVariables.get(\"testWellName\") && data.maxPressure === 12 && data.plannedFlow === 100).to.eql(true); });",
-                  "if (pm.response.code === 201 && Number.isInteger(data.id)) pm.collectionVariables.set(\"wellId\", data.id);"
+                  "(function () {",
+                  "    pm.test(\"HTTP 201\", function () { pm.response.to.have.status(201); });",
+                  "    const data = pm.response.json();",
+                  "    pm.test(\"Содержимое ответа соответствует ожиданиям\", function () { pm.expect(Number.isInteger(data.id) && data.id > 0 && data.name === pm.collectionVariables.get(\"testWellName\") && data.maxPressure === 12 && data.plannedFlow === 100).to.eql(true); });",
+                  "    if (pm.response.code === 201 && Number.isInteger(data.id)) pm.collectionVariables.set(\"wellId\", data.id);",
+                  "})();"
                 ]
               }
             }
@@ -496,7 +1034,9 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "if (!pm.collectionVariables.get(\"wellId\")) throw new Error(\"Нет wellId: запустите коллекцию с начала.\");"
+                  "(function () {",
+                  "    if (!pm.collectionVariables.get(\"wellId\")) throw new Error(\"Нет wellId: запустите коллекцию с начала.\");",
+                  "})();"
                 ]
               }
             },
@@ -505,9 +1045,11 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
-                  "const data = pm.response.json();",
-                  "pm.test(\"Содержимое ответа соответствует ожиданиям\", function () { pm.expect(data.id === Number(pm.collectionVariables.get(\"wellId\")) && data.maxPressure === 12 && data.plannedFlow === 100).to.eql(true); });"
+                  "(function () {",
+                  "    pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
+                  "    const data = pm.response.json();",
+                  "    pm.test(\"Содержимое ответа соответствует ожиданиям\", function () { pm.expect(data.id === Number(pm.collectionVariables.get(\"wellId\")) && data.maxPressure === 12 && data.plannedFlow === 100).to.eql(true); });",
+                  "})();"
                 ]
               }
             }
@@ -541,7 +1083,9 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "if (!pm.collectionVariables.get(\"userToken\")) throw new Error(\"Нет userToken: запустите коллекцию с начала.\");"
+                  "(function () {",
+                  "    if (!pm.collectionVariables.get(\"userToken\")) throw new Error(\"Нет userToken: запустите коллекцию с начала.\");",
+                  "})();"
                 ]
               }
             },
@@ -550,9 +1094,11 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
-                  "const row = pm.response.json().find(x => x.wellId === Number(pm.collectionVariables.get(\"wellId\")));",
-                  "pm.test(\"У новой скважины нет измерений\", function () { pm.expect(!!row && row.actualFlow === null && row.planPercent === null && row.pressureExceeded === null && row.recordedAt === null).to.eql(true); });"
+                  "(function () {",
+                  "    pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
+                  "    const row = pm.response.json().find(x => x.wellId === Number(pm.collectionVariables.get(\"wellId\")));",
+                  "    pm.test(\"У новой скважины нет измерений\", function () { pm.expect(!!row && row.actualFlow === null && row.planPercent === null && row.pressureExceeded === null && row.recordedAt === null).to.eql(true); });",
+                  "})();"
                 ]
               }
             }
@@ -593,8 +1139,10 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "if (!pm.collectionVariables.get(\"userToken\")) throw new Error(\"Нет userToken: запустите коллекцию с начала.\");",
-                  "if (!pm.collectionVariables.get(\"wellId\")) throw new Error(\"Нет wellId: запустите коллекцию с начала.\");"
+                  "(function () {",
+                  "    if (!pm.collectionVariables.get(\"userToken\")) throw new Error(\"Нет userToken: запустите коллекцию с начала.\");",
+                  "    if (!pm.collectionVariables.get(\"wellId\")) throw new Error(\"Нет wellId: запустите коллекцию с начала.\");",
+                  "})();"
                 ]
               }
             },
@@ -603,7 +1151,9 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test(\"HTTP 403\", function () { pm.response.to.have.status(403); });"
+                  "(function () {",
+                  "    pm.test(\"HTTP 403\", function () { pm.response.to.have.status(403); });",
+                  "})();"
                 ]
               }
             }
@@ -658,8 +1208,10 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "if (!pm.collectionVariables.get(\"userToken\")) throw new Error(\"Нет userToken: запустите коллекцию с начала.\");",
-                  "if (!pm.collectionVariables.get(\"wellId\")) throw new Error(\"Нет wellId: запустите коллекцию с начала.\");"
+                  "(function () {",
+                  "    if (!pm.collectionVariables.get(\"userToken\")) throw new Error(\"Нет userToken: запустите коллекцию с начала.\");",
+                  "    if (!pm.collectionVariables.get(\"wellId\")) throw new Error(\"Нет wellId: запустите коллекцию с начала.\");",
+                  "})();"
                 ]
               }
             },
@@ -668,7 +1220,9 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test(\"HTTP 403\", function () { pm.response.to.have.status(403); });"
+                  "(function () {",
+                  "    pm.test(\"HTTP 403\", function () { pm.response.to.have.status(403); });",
+                  "})();"
                 ]
               }
             }
@@ -709,8 +1263,10 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "if (!pm.collectionVariables.get(\"adminToken\")) throw new Error(\"Нет adminToken: запустите коллекцию с начала.\");",
-                  "if (!pm.collectionVariables.get(\"wellId\")) throw new Error(\"Нет wellId: запустите коллекцию с начала.\");"
+                  "(function () {",
+                  "    if (!pm.collectionVariables.get(\"adminToken\")) throw new Error(\"Нет adminToken: запустите коллекцию с начала.\");",
+                  "    if (!pm.collectionVariables.get(\"wellId\")) throw new Error(\"Нет wellId: запустите коллекцию с начала.\");",
+                  "})();"
                 ]
               }
             },
@@ -719,7 +1275,9 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test(\"HTTP 204\", function () { pm.response.to.have.status(204); });"
+                  "(function () {",
+                  "    pm.test(\"HTTP 204\", function () { pm.response.to.have.status(204); });",
+                  "})();"
                 ]
               }
             }
@@ -774,7 +1332,9 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "if (!pm.collectionVariables.get(\"wellId\")) throw new Error(\"Нет wellId: запустите коллекцию с начала.\");"
+                  "(function () {",
+                  "    if (!pm.collectionVariables.get(\"wellId\")) throw new Error(\"Нет wellId: запустите коллекцию с начала.\");",
+                  "})();"
                 ]
               }
             },
@@ -783,9 +1343,11 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
-                  "const data = pm.response.json();",
-                  "pm.test(\"Содержимое ответа соответствует ожиданиям\", function () { pm.expect(data.maxPressure === 10 && data.plannedFlow === 120 && data.name === pm.collectionVariables.get(\"testWellName\")).to.eql(true); });"
+                  "(function () {",
+                  "    pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
+                  "    const data = pm.response.json();",
+                  "    pm.test(\"Содержимое ответа соответствует ожиданиям\", function () { pm.expect(data.maxPressure === 10 && data.plannedFlow === 120 && data.name === pm.collectionVariables.get(\"testWellName\")).to.eql(true); });",
+                  "})();"
                 ]
               }
             }
@@ -819,7 +1381,9 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "if (!pm.collectionVariables.get(\"adminToken\")) throw new Error(\"Нет adminToken: запустите коллекцию с начала.\");"
+                  "(function () {",
+                  "    if (!pm.collectionVariables.get(\"adminToken\")) throw new Error(\"Нет adminToken: запустите коллекцию с начала.\");",
+                  "})();"
                 ]
               }
             },
@@ -828,7 +1392,9 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test(\"HTTP 400\", function () { pm.response.to.have.status(400); });"
+                  "(function () {",
+                  "    pm.test(\"HTTP 400\", function () { pm.response.to.have.status(400); });",
+                  "})();"
                 ]
               }
             }
@@ -873,6 +1439,116 @@
             }
           },
           "response": []
+        },
+        {
+          "name": "16.1 Нельзя передать свой ID скважины 400",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/wells",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "wells"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"id\": 999,\n  \"name\": \"DTO test\",\n  \"maxPressure\": 10,\n  \"plannedFlow\": 100\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "(function () {",
+                  "    pm.test(\"HTTP 400\", function () { pm.response.to.have.status(400); });",
+                  "})();"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "16.2 Пустое название скважины 400",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/wells",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "wells"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"   \",\n  \"maxPressure\": 10,\n  \"plannedFlow\": 100\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "(function () {",
+                  "    pm.test(\"HTTP 400\", function () { pm.response.to.have.status(400); });",
+                  "})();"
+                ]
+              }
+            }
+          ],
+          "response": []
         }
       ]
     },
@@ -887,9 +1563,11 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
-                  "const data = pm.response.json();",
-                  "pm.test(\"Содержимое ответа соответствует ожиданиям\", function () { pm.expect(Array.isArray(data)).to.eql(true); });"
+                  "(function () {",
+                  "    pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
+                  "    const data = pm.response.json();",
+                  "    pm.test(\"Содержимое ответа соответствует ожиданиям\", function () { pm.expect(Array.isArray(data)).to.eql(true); });",
+                  "})();"
                 ]
               }
             }
@@ -922,7 +1600,9 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "if (!pm.collectionVariables.get(\"wellId\")) throw new Error(\"Нет wellId: запустите коллекцию с начала.\");"
+                  "(function () {",
+                  "    if (!pm.collectionVariables.get(\"wellId\")) throw new Error(\"Нет wellId: запустите коллекцию с начала.\");",
+                  "})();"
                 ]
               }
             },
@@ -931,7 +1611,9 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test(\"HTTP 401\", function () { pm.response.to.have.status(401); });"
+                  "(function () {",
+                  "    pm.test(\"HTTP 401\", function () { pm.response.to.have.status(401); });",
+                  "})();"
                 ]
               }
             }
@@ -978,8 +1660,10 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "if (!pm.collectionVariables.get(\"userToken\")) throw new Error(\"Нет userToken: запустите коллекцию с начала.\");",
-                  "if (!pm.collectionVariables.get(\"wellId\")) throw new Error(\"Нет wellId: запустите коллекцию с начала.\");"
+                  "(function () {",
+                  "    if (!pm.collectionVariables.get(\"userToken\")) throw new Error(\"Нет userToken: запустите коллекцию с начала.\");",
+                  "    if (!pm.collectionVariables.get(\"wellId\")) throw new Error(\"Нет wellId: запустите коллекцию с начала.\");",
+                  "})();"
                 ]
               }
             },
@@ -988,7 +1672,9 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test(\"HTTP 403\", function () { pm.response.to.have.status(403); });"
+                  "(function () {",
+                  "    pm.test(\"HTTP 403\", function () { pm.response.to.have.status(403); });",
+                  "})();"
                 ]
               }
             }
@@ -1042,9 +1728,11 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "if (!pm.collectionVariables.get(\"adminToken\")) throw new Error(\"Нет adminToken: запустите коллекцию с начала.\");",
-                  "if (!pm.collectionVariables.get(\"wellId\")) throw new Error(\"Нет wellId: запустите коллекцию с начала.\");",
-                  "pm.collectionVariables.unset(\"measurementId\");"
+                  "(function () {",
+                  "    if (!pm.collectionVariables.get(\"adminToken\")) throw new Error(\"Нет adminToken: запустите коллекцию с начала.\");",
+                  "    if (!pm.collectionVariables.get(\"wellId\")) throw new Error(\"Нет wellId: запустите коллекцию с начала.\");",
+                  "    pm.collectionVariables.unset(\"measurementId\");",
+                  "})();"
                 ]
               }
             },
@@ -1053,10 +1741,12 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test(\"HTTP 201\", function () { pm.response.to.have.status(201); });",
-                  "const data = pm.response.json();",
-                  "pm.test(\"Содержимое ответа соответствует ожиданиям\", function () { pm.expect(Number.isInteger(data.id) && data.id > 0 && data.wellId === Number(pm.collectionVariables.get(\"wellId\")) && data.pressure === 13 && data.flow === 90).to.eql(true); });",
-                  "if (pm.response.code === 201 && Number.isInteger(data.id)) pm.collectionVariables.set(\"measurementId\", data.id);"
+                  "(function () {",
+                  "    pm.test(\"HTTP 201\", function () { pm.response.to.have.status(201); });",
+                  "    const data = pm.response.json();",
+                  "    pm.test(\"Содержимое ответа соответствует ожиданиям\", function () { pm.expect(Number.isInteger(data.id) && data.id > 0 && data.wellId === Number(pm.collectionVariables.get(\"wellId\")) && data.pressure === 13 && data.flow === 90).to.eql(true); });",
+                  "    if (pm.response.code === 201 && Number.isInteger(data.id)) pm.collectionVariables.set(\"measurementId\", data.id);",
+                  "})();"
                 ]
               }
             }
@@ -1110,7 +1800,9 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "if (!pm.collectionVariables.get(\"measurementId\")) throw new Error(\"Нет measurementId: запустите коллекцию с начала.\");"
+                  "(function () {",
+                  "    if (!pm.collectionVariables.get(\"measurementId\")) throw new Error(\"Нет measurementId: запустите коллекцию с начала.\");",
+                  "})();"
                 ]
               }
             },
@@ -1119,9 +1811,11 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
-                  "const data = pm.response.json();",
-                  "pm.test(\"Содержимое ответа соответствует ожиданиям\", function () { pm.expect(data.id === Number(pm.collectionVariables.get(\"measurementId\")) && data.wellId === Number(pm.collectionVariables.get(\"wellId\")) && data.pressure === 13 && data.flow === 90).to.eql(true); });"
+                  "(function () {",
+                  "    pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
+                  "    const data = pm.response.json();",
+                  "    pm.test(\"Содержимое ответа соответствует ожиданиям\", function () { pm.expect(data.id === Number(pm.collectionVariables.get(\"measurementId\")) && data.wellId === Number(pm.collectionVariables.get(\"wellId\")) && data.pressure === 13 && data.flow === 90).to.eql(true); });",
+                  "})();"
                 ]
               }
             }
@@ -1155,8 +1849,10 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "if (!pm.collectionVariables.get(\"adminToken\")) throw new Error(\"Нет adminToken: запустите коллекцию с начала.\");",
-                  "if (!pm.collectionVariables.get(\"wellId\")) throw new Error(\"Нет wellId: запустите коллекцию с начала.\");"
+                  "(function () {",
+                  "    if (!pm.collectionVariables.get(\"adminToken\")) throw new Error(\"Нет adminToken: запустите коллекцию с начала.\");",
+                  "    if (!pm.collectionVariables.get(\"wellId\")) throw new Error(\"Нет wellId: запустите коллекцию с начала.\");",
+                  "})();"
                 ]
               }
             },
@@ -1165,7 +1861,9 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test(\"HTTP 400\", function () { pm.response.to.have.status(400); });"
+                  "(function () {",
+                  "    pm.test(\"HTTP 400\", function () { pm.response.to.have.status(400); });",
+                  "})();"
                 ]
               }
             }
@@ -1224,7 +1922,9 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test(\"HTTP 401\", function () { pm.response.to.have.status(401); });"
+                  "(function () {",
+                  "    pm.test(\"HTTP 401\", function () { pm.response.to.have.status(401); });",
+                  "})();"
                 ]
               }
             }
@@ -1258,7 +1958,9 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test(\"HTTP 401\", function () { pm.response.to.have.status(401); });"
+                  "(function () {",
+                  "    pm.test(\"HTTP 401\", function () { pm.response.to.have.status(401); });",
+                  "})();"
                 ]
               }
             }
@@ -1292,7 +1994,9 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "if (!pm.collectionVariables.get(\"userToken\")) throw new Error(\"Нет userToken: запустите коллекцию с начала.\");"
+                  "(function () {",
+                  "    if (!pm.collectionVariables.get(\"userToken\")) throw new Error(\"Нет userToken: запустите коллекцию с начала.\");",
+                  "})();"
                 ]
               }
             },
@@ -1301,9 +2005,11 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
-                  "const row = pm.response.json().find(x => x.measurementId === Number(pm.collectionVariables.get(\"measurementId\")));",
-                  "pm.test(\"Измерение объединено с названием скважины\", function () { pm.expect(!!row && row.wellName === pm.collectionVariables.get(\"testWellName\") && row.pressure === 13 && row.flow === 90).to.eql(true); });"
+                  "(function () {",
+                  "    pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
+                  "    const row = pm.response.json().find(x => x.measurementId === Number(pm.collectionVariables.get(\"measurementId\")));",
+                  "    pm.test(\"Измерение объединено с названием скважины\", function () { pm.expect(!!row && row.wellName === pm.collectionVariables.get(\"testWellName\") && row.pressure === 13 && row.flow === 90).to.eql(true); });",
+                  "})();"
                 ]
               }
             }
@@ -1344,7 +2050,9 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "if (!pm.collectionVariables.get(\"userToken\")) throw new Error(\"Нет userToken: запустите коллекцию с начала.\");"
+                  "(function () {",
+                  "    if (!pm.collectionVariables.get(\"userToken\")) throw new Error(\"Нет userToken: запустите коллекцию с начала.\");",
+                  "})();"
                 ]
               }
             },
@@ -1353,9 +2061,11 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
-                  "const row = pm.response.json().find(x => x.measurementId === Number(pm.collectionVariables.get(\"measurementId\")));",
-                  "pm.test(\"Давление 13, предел 10, превышение 3\", function () { pm.expect(!!row && row.wellName === pm.collectionVariables.get(\"testWellName\") && row.pressure === 13 && row.maxPressure === 10 && row.excess === 3).to.eql(true); });"
+                  "(function () {",
+                  "    pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
+                  "    const row = pm.response.json().find(x => x.measurementId === Number(pm.collectionVariables.get(\"measurementId\")));",
+                  "    pm.test(\"Давление 13, предел 10, превышение 3\", function () { pm.expect(!!row && row.wellName === pm.collectionVariables.get(\"testWellName\") && row.pressure === 13 && row.maxPressure === 10 && row.excess === 3).to.eql(true); });",
+                  "})();"
                 ]
               }
             }
@@ -1396,7 +2106,9 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "if (!pm.collectionVariables.get(\"userToken\")) throw new Error(\"Нет userToken: запустите коллекцию с начала.\");"
+                  "(function () {",
+                  "    if (!pm.collectionVariables.get(\"userToken\")) throw new Error(\"Нет userToken: запустите коллекцию с начала.\");",
+                  "})();"
                 ]
               }
             },
@@ -1405,9 +2117,11 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
-                  "const row = pm.response.json().find(x => x.wellId === Number(pm.collectionVariables.get(\"wellId\")));",
-                  "pm.test(\"План выполнен на 75%, давление превышено\", function () { pm.expect(!!row && row.actualFlow === 90 && row.plannedFlow === 120 && row.planPercent === 75 && row.pressureExceeded === true).to.eql(true); });"
+                  "(function () {",
+                  "    pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
+                  "    const row = pm.response.json().find(x => x.wellId === Number(pm.collectionVariables.get(\"wellId\")));",
+                  "    pm.test(\"План выполнен на 75%, давление превышено\", function () { pm.expect(!!row && row.actualFlow === 90 && row.plannedFlow === 120 && row.planPercent === 75 && row.pressureExceeded === true).to.eql(true); });",
+                  "})();"
                 ]
               }
             }
@@ -1448,7 +2162,9 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "if (!pm.collectionVariables.get(\"adminToken\")) throw new Error(\"Нет adminToken: запустите коллекцию с начала.\");"
+                  "(function () {",
+                  "    if (!pm.collectionVariables.get(\"adminToken\")) throw new Error(\"Нет adminToken: запустите коллекцию с начала.\");",
+                  "})();"
                 ]
               }
             },
@@ -1457,9 +2173,11 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
-                  "const row = pm.response.json().find(x => x.wellId === Number(pm.collectionVariables.get(\"wellId\")));",
-                  "pm.test(\"План выполнен на 75%, давление превышено\", function () { pm.expect(!!row && row.actualFlow === 90 && row.plannedFlow === 120 && row.planPercent === 75 && row.pressureExceeded === true).to.eql(true); });"
+                  "(function () {",
+                  "    pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
+                  "    const row = pm.response.json().find(x => x.wellId === Number(pm.collectionVariables.get(\"wellId\")));",
+                  "    pm.test(\"План выполнен на 75%, давление превышено\", function () { pm.expect(!!row && row.actualFlow === 90 && row.plannedFlow === 120 && row.planPercent === 75 && row.pressureExceeded === true).to.eql(true); });",
+                  "})();"
                 ]
               }
             }
@@ -1505,9 +2223,11 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "if (!pm.collectionVariables.get(\"userToken\")) throw new Error(\"Нет userToken: запустите коллекцию с начала.\");",
-                  "if (!pm.collectionVariables.get(\"wellId\")) throw new Error(\"Нет wellId: запустите коллекцию с начала.\");",
-                  "if (!pm.collectionVariables.get(\"measurementId\")) throw new Error(\"Нет measurementId: запустите коллекцию с начала.\");"
+                  "(function () {",
+                  "    if (!pm.collectionVariables.get(\"userToken\")) throw new Error(\"Нет userToken: запустите коллекцию с начала.\");",
+                  "    if (!pm.collectionVariables.get(\"wellId\")) throw new Error(\"Нет wellId: запустите коллекцию с начала.\");",
+                  "    if (!pm.collectionVariables.get(\"measurementId\")) throw new Error(\"Нет measurementId: запустите коллекцию с начала.\");",
+                  "})();"
                 ]
               }
             },
@@ -1516,7 +2236,9 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test(\"HTTP 403\", function () { pm.response.to.have.status(403); });"
+                  "(function () {",
+                  "    pm.test(\"HTTP 403\", function () { pm.response.to.have.status(403); });",
+                  "})();"
                 ]
               }
             }
@@ -1571,8 +2293,10 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "if (!pm.collectionVariables.get(\"userToken\")) throw new Error(\"Нет userToken: запустите коллекцию с начала.\");",
-                  "if (!pm.collectionVariables.get(\"measurementId\")) throw new Error(\"Нет measurementId: запустите коллекцию с начала.\");"
+                  "(function () {",
+                  "    if (!pm.collectionVariables.get(\"userToken\")) throw new Error(\"Нет userToken: запустите коллекцию с начала.\");",
+                  "    if (!pm.collectionVariables.get(\"measurementId\")) throw new Error(\"Нет measurementId: запустите коллекцию с начала.\");",
+                  "})();"
                 ]
               }
             },
@@ -1581,7 +2305,9 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test(\"HTTP 403\", function () { pm.response.to.have.status(403); });"
+                  "(function () {",
+                  "    pm.test(\"HTTP 403\", function () { pm.response.to.have.status(403); });",
+                  "})();"
                 ]
               }
             }
@@ -1622,9 +2348,11 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "if (!pm.collectionVariables.get(\"adminToken\")) throw new Error(\"Нет adminToken: запустите коллекцию с начала.\");",
-                  "if (!pm.collectionVariables.get(\"wellId\")) throw new Error(\"Нет wellId: запустите коллекцию с начала.\");",
-                  "if (!pm.collectionVariables.get(\"measurementId\")) throw new Error(\"Нет measurementId: запустите коллекцию с начала.\");"
+                  "(function () {",
+                  "    if (!pm.collectionVariables.get(\"adminToken\")) throw new Error(\"Нет adminToken: запустите коллекцию с начала.\");",
+                  "    if (!pm.collectionVariables.get(\"wellId\")) throw new Error(\"Нет wellId: запустите коллекцию с начала.\");",
+                  "    if (!pm.collectionVariables.get(\"measurementId\")) throw new Error(\"Нет measurementId: запустите коллекцию с начала.\");",
+                  "})();"
                 ]
               }
             },
@@ -1633,7 +2361,9 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test(\"HTTP 204\", function () { pm.response.to.have.status(204); });"
+                  "(function () {",
+                  "    pm.test(\"HTTP 204\", function () { pm.response.to.have.status(204); });",
+                  "})();"
                 ]
               }
             }
@@ -1688,7 +2418,9 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "if (!pm.collectionVariables.get(\"measurementId\")) throw new Error(\"Нет measurementId: запустите коллекцию с начала.\");"
+                  "(function () {",
+                  "    if (!pm.collectionVariables.get(\"measurementId\")) throw new Error(\"Нет measurementId: запустите коллекцию с начала.\");",
+                  "})();"
                 ]
               }
             },
@@ -1697,9 +2429,11 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
-                  "const data = pm.response.json();",
-                  "pm.test(\"Содержимое ответа соответствует ожиданиям\", function () { pm.expect(data.pressure === 10 && data.flow === 120 && data.wellId === Number(pm.collectionVariables.get(\"wellId\"))).to.eql(true); });"
+                  "(function () {",
+                  "    pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
+                  "    const data = pm.response.json();",
+                  "    pm.test(\"Содержимое ответа соответствует ожиданиям\", function () { pm.expect(data.pressure === 10 && data.flow === 120 && data.wellId === Number(pm.collectionVariables.get(\"wellId\"))).to.eql(true); });",
+                  "})();"
                 ]
               }
             }
@@ -1733,7 +2467,9 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "if (!pm.collectionVariables.get(\"userToken\")) throw new Error(\"Нет userToken: запустите коллекцию с начала.\");"
+                  "(function () {",
+                  "    if (!pm.collectionVariables.get(\"userToken\")) throw new Error(\"Нет userToken: запустите коллекцию с начала.\");",
+                  "})();"
                 ]
               }
             },
@@ -1742,9 +2478,11 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
-                  "const data = pm.response.json();",
-                  "pm.test(\"Содержимое ответа соответствует ожиданиям\", function () { pm.expect(Array.isArray(data) && !data.some(x => x.measurementId === Number(pm.collectionVariables.get(\"measurementId\")))).to.eql(true); });"
+                  "(function () {",
+                  "    pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
+                  "    const data = pm.response.json();",
+                  "    pm.test(\"Содержимое ответа соответствует ожиданиям\", function () { pm.expect(Array.isArray(data) && !data.some(x => x.measurementId === Number(pm.collectionVariables.get(\"measurementId\")))).to.eql(true); });",
+                  "})();"
                 ]
               }
             }
@@ -1785,7 +2523,9 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "if (!pm.collectionVariables.get(\"userToken\")) throw new Error(\"Нет userToken: запустите коллекцию с начала.\");"
+                  "(function () {",
+                  "    if (!pm.collectionVariables.get(\"userToken\")) throw new Error(\"Нет userToken: запустите коллекцию с начала.\");",
+                  "})();"
                 ]
               }
             },
@@ -1794,9 +2534,11 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
-                  "const row = pm.response.json().find(x => x.wellId === Number(pm.collectionVariables.get(\"wellId\")));",
-                  "pm.test(\"План 100%, давление в пределах нормы\", function () { pm.expect(!!row && row.planPercent === 100 && row.actualFlow === 120 && row.pressureExceeded === false).to.eql(true); });"
+                  "(function () {",
+                  "    pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
+                  "    const row = pm.response.json().find(x => x.wellId === Number(pm.collectionVariables.get(\"wellId\")));",
+                  "    pm.test(\"План 100%, давление в пределах нормы\", function () { pm.expect(!!row && row.planPercent === 100 && row.actualFlow === 120 && row.pressureExceeded === false).to.eql(true); });",
+                  "})();"
                 ]
               }
             }
@@ -1842,8 +2584,10 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "if (!pm.collectionVariables.get(\"adminToken\")) throw new Error(\"Нет adminToken: запустите коллекцию с начала.\");",
-                  "if (!pm.collectionVariables.get(\"wellId\")) throw new Error(\"Нет wellId: запустите коллекцию с начала.\");"
+                  "(function () {",
+                  "    if (!pm.collectionVariables.get(\"adminToken\")) throw new Error(\"Нет adminToken: запустите коллекцию с начала.\");",
+                  "    if (!pm.collectionVariables.get(\"wellId\")) throw new Error(\"Нет wellId: запустите коллекцию с начала.\");",
+                  "})();"
                 ]
               }
             },
@@ -1852,7 +2596,9 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test(\"HTTP 409\", function () { pm.response.to.have.status(409); });"
+                  "(function () {",
+                  "    pm.test(\"HTTP 409\", function () { pm.response.to.have.status(409); });",
+                  "})();"
                 ]
               }
             }
@@ -1893,8 +2639,10 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "if (!pm.collectionVariables.get(\"adminToken\")) throw new Error(\"Нет adminToken: запустите коллекцию с начала.\");",
-                  "if (!pm.collectionVariables.get(\"measurementId\")) throw new Error(\"Нет measurementId: запустите коллекцию с начала.\");"
+                  "(function () {",
+                  "    if (!pm.collectionVariables.get(\"adminToken\")) throw new Error(\"Нет adminToken: запустите коллекцию с начала.\");",
+                  "    if (!pm.collectionVariables.get(\"measurementId\")) throw new Error(\"Нет measurementId: запустите коллекцию с начала.\");",
+                  "})();"
                 ]
               }
             },
@@ -1903,7 +2651,9 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test(\"HTTP 204\", function () { pm.response.to.have.status(204); });"
+                  "(function () {",
+                  "    pm.test(\"HTTP 204\", function () { pm.response.to.have.status(204); });",
+                  "})();"
                 ]
               }
             }
@@ -1944,7 +2694,9 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "if (!pm.collectionVariables.get(\"measurementId\")) throw new Error(\"Нет measurementId: запустите коллекцию с начала.\");"
+                  "(function () {",
+                  "    if (!pm.collectionVariables.get(\"measurementId\")) throw new Error(\"Нет measurementId: запустите коллекцию с начала.\");",
+                  "})();"
                 ]
               }
             },
@@ -1953,7 +2705,9 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test(\"HTTP 404\", function () { pm.response.to.have.status(404); });"
+                  "(function () {",
+                  "    pm.test(\"HTTP 404\", function () { pm.response.to.have.status(404); });",
+                  "})();"
                 ]
               }
             }
@@ -1987,9 +2741,11 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "if (!pm.collectionVariables.get(\"adminToken\")) throw new Error(\"Нет adminToken: запустите коллекцию с начала.\");",
-                  "if (!pm.collectionVariables.get(\"wellId\")) throw new Error(\"Нет wellId: запустите коллекцию с начала.\");",
-                  "if (!pm.collectionVariables.get(\"measurementId\")) throw new Error(\"Нет measurementId: запустите коллекцию с начала.\");"
+                  "(function () {",
+                  "    if (!pm.collectionVariables.get(\"adminToken\")) throw new Error(\"Нет adminToken: запустите коллекцию с начала.\");",
+                  "    if (!pm.collectionVariables.get(\"wellId\")) throw new Error(\"Нет wellId: запустите коллекцию с начала.\");",
+                  "    if (!pm.collectionVariables.get(\"measurementId\")) throw new Error(\"Нет measurementId: запустите коллекцию с начала.\");",
+                  "})();"
                 ]
               }
             },
@@ -1998,7 +2754,9 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test(\"HTTP 404\", function () { pm.response.to.have.status(404); });"
+                  "(function () {",
+                  "    pm.test(\"HTTP 404\", function () { pm.response.to.have.status(404); });",
+                  "})();"
                 ]
               }
             }
@@ -2053,8 +2811,10 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "if (!pm.collectionVariables.get(\"adminToken\")) throw new Error(\"Нет adminToken: запустите коллекцию с начала.\");",
-                  "if (!pm.collectionVariables.get(\"measurementId\")) throw new Error(\"Нет measurementId: запустите коллекцию с начала.\");"
+                  "(function () {",
+                  "    if (!pm.collectionVariables.get(\"adminToken\")) throw new Error(\"Нет adminToken: запустите коллекцию с начала.\");",
+                  "    if (!pm.collectionVariables.get(\"measurementId\")) throw new Error(\"Нет measurementId: запустите коллекцию с начала.\");",
+                  "})();"
                 ]
               }
             },
@@ -2063,7 +2823,9 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test(\"HTTP 404\", function () { pm.response.to.have.status(404); });"
+                  "(function () {",
+                  "    pm.test(\"HTTP 404\", function () { pm.response.to.have.status(404); });",
+                  "})();"
                 ]
               }
             }
@@ -2104,8 +2866,10 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "if (!pm.collectionVariables.get(\"adminToken\")) throw new Error(\"Нет adminToken: запустите коллекцию с начала.\");",
-                  "if (!pm.collectionVariables.get(\"wellId\")) throw new Error(\"Нет wellId: запустите коллекцию с начала.\");"
+                  "(function () {",
+                  "    if (!pm.collectionVariables.get(\"adminToken\")) throw new Error(\"Нет adminToken: запустите коллекцию с начала.\");",
+                  "    if (!pm.collectionVariables.get(\"wellId\")) throw new Error(\"Нет wellId: запустите коллекцию с начала.\");",
+                  "})();"
                 ]
               }
             },
@@ -2114,7 +2878,9 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test(\"HTTP 204\", function () { pm.response.to.have.status(204); });"
+                  "(function () {",
+                  "    pm.test(\"HTTP 204\", function () { pm.response.to.have.status(204); });",
+                  "})();"
                 ]
               }
             }
@@ -2155,7 +2921,9 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "if (!pm.collectionVariables.get(\"wellId\")) throw new Error(\"Нет wellId: запустите коллекцию с начала.\");"
+                  "(function () {",
+                  "    if (!pm.collectionVariables.get(\"wellId\")) throw new Error(\"Нет wellId: запустите коллекцию с начала.\");",
+                  "})();"
                 ]
               }
             },
@@ -2164,7 +2932,9 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test(\"HTTP 404\", function () { pm.response.to.have.status(404); });"
+                  "(function () {",
+                  "    pm.test(\"HTTP 404\", function () { pm.response.to.have.status(404); });",
+                  "})();"
                 ]
               }
             }
@@ -2198,8 +2968,10 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "if (!pm.collectionVariables.get(\"adminToken\")) throw new Error(\"Нет adminToken: запустите коллекцию с начала.\");",
-                  "if (!pm.collectionVariables.get(\"wellId\")) throw new Error(\"Нет wellId: запустите коллекцию с начала.\");"
+                  "(function () {",
+                  "    if (!pm.collectionVariables.get(\"adminToken\")) throw new Error(\"Нет adminToken: запустите коллекцию с начала.\");",
+                  "    if (!pm.collectionVariables.get(\"wellId\")) throw new Error(\"Нет wellId: запустите коллекцию с начала.\");",
+                  "})();"
                 ]
               }
             },
@@ -2208,7 +2980,9 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test(\"HTTP 404\", function () { pm.response.to.have.status(404); });"
+                  "(function () {",
+                  "    pm.test(\"HTTP 404\", function () { pm.response.to.have.status(404); });",
+                  "})();"
                 ]
               }
             }
@@ -2263,8 +3037,10 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "if (!pm.collectionVariables.get(\"adminToken\")) throw new Error(\"Нет adminToken: запустите коллекцию с начала.\");",
-                  "if (!pm.collectionVariables.get(\"wellId\")) throw new Error(\"Нет wellId: запустите коллекцию с начала.\");"
+                  "(function () {",
+                  "    if (!pm.collectionVariables.get(\"adminToken\")) throw new Error(\"Нет adminToken: запустите коллекцию с начала.\");",
+                  "    if (!pm.collectionVariables.get(\"wellId\")) throw new Error(\"Нет wellId: запустите коллекцию с начала.\");",
+                  "})();"
                 ]
               }
             },
@@ -2273,7 +3049,9 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test(\"HTTP 404\", function () { pm.response.to.have.status(404); });"
+                  "(function () {",
+                  "    pm.test(\"HTTP 404\", function () { pm.response.to.have.status(404); });",
+                  "})();"
                 ]
               }
             }
@@ -2314,8 +3092,10 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "if (!pm.collectionVariables.get(\"adminToken\")) throw new Error(\"Нет adminToken: запустите коллекцию с начала.\");",
-                  "if (!pm.collectionVariables.get(\"wellId\")) throw new Error(\"Нет wellId: запустите коллекцию с начала.\");"
+                  "(function () {",
+                  "    if (!pm.collectionVariables.get(\"adminToken\")) throw new Error(\"Нет adminToken: запустите коллекцию с начала.\");",
+                  "    if (!pm.collectionVariables.get(\"wellId\")) throw new Error(\"Нет wellId: запустите коллекцию с начала.\");",
+                  "})();"
                 ]
               }
             },
@@ -2324,7 +3104,9 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test(\"HTTP 400\", function () { pm.response.to.have.status(400); });"
+                  "(function () {",
+                  "    pm.test(\"HTTP 400\", function () { pm.response.to.have.status(400); });",
+                  "})();"
                 ]
               }
             }
@@ -2378,7 +3160,9 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "if (!pm.collectionVariables.get(\"userToken\")) throw new Error(\"Нет userToken: запустите коллекцию с начала.\");"
+                  "(function () {",
+                  "    if (!pm.collectionVariables.get(\"userToken\")) throw new Error(\"Нет userToken: запустите коллекцию с начала.\");",
+                  "})();"
                 ]
               }
             },
@@ -2387,9 +3171,11 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
-                  "const data = pm.response.json();",
-                  "pm.test(\"Содержимое ответа соответствует ожиданиям\", function () { pm.expect(Array.isArray(data) && !data.some(x => x.wellId === Number(pm.collectionVariables.get(\"wellId\")))).to.eql(true); });"
+                  "(function () {",
+                  "    pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
+                  "    const data = pm.response.json();",
+                  "    pm.test(\"Содержимое ответа соответствует ожиданиям\", function () { pm.expect(Array.isArray(data) && !data.some(x => x.wellId === Number(pm.collectionVariables.get(\"wellId\")))).to.eql(true); });",
+                  "})();"
                 ]
               }
             }
@@ -2453,6 +3239,26 @@
     },
     {
       "key": "testWellName",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "adminLogin",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "adminPassword",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "userLogin",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "userPassword",
       "value": "",
       "type": "string"
     }

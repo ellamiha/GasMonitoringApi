@@ -1,6 +1,7 @@
+using GasMonitoringApi.Auth;
+using GasMonitoringApi.Dtos;
+using GasMonitoringApi.Services;
 using Microsoft.AspNetCore.Authorization;
-using GasMonitoringApi.Data;
-using GasMonitoringApi.Models;
 using Microsoft.AspNetCore.Mvc;
 
 namespace GasMonitoringApi.Controllers;
@@ -9,87 +10,46 @@ namespace GasMonitoringApi.Controllers;
 [Route("api/wells")]
 public class WellsController : ControllerBase
 {
-    private readonly AppData data;
+    private readonly WellService service;
 
-    public WellsController(AppData data)
+    public WellsController(WellService service)
     {
-        this.data = data;
+        this.service = service;
     }
 
     [HttpGet]
-    public IActionResult GetAll()
+    public async Task<ActionResult<List<WellResponse>>> GetAll(CancellationToken cancellationToken)
     {
-        lock (data.SyncRoot)
-        {
-            return Ok(data.Wells.ToList());
-        }
+        return Ok(await service.GetAllAsync(cancellationToken));
     }
 
     [HttpGet("{id:int}")]
-    public IActionResult GetById(int id)
+    public async Task<ActionResult<WellResponse>> GetById(int id, CancellationToken cancellationToken)
     {
-        lock (data.SyncRoot)
-        {
-            var well = data.Wells.FirstOrDefault(w => w.Id == id);
-
-            if (well == null)
-                return NotFound("Скважина не найдена.");
-
-            return Ok(well);
-        }
+        return Ok(await service.GetByIdAsync(id, cancellationToken));
     }
-    [Authorize(Roles = "Admin")]    
+
+    [Authorize(Roles = UserRoles.Admin)]
     [HttpPost]
-    public IActionResult Create(Well well)
+    public async Task<ActionResult<WellResponse>> Create(WellRequest request, CancellationToken cancellationToken)
     {
-        lock (data.SyncRoot)
-        {
-            well.Id = data.GetNextWellId();
-            data.Wells.Add(well);
-
-            return CreatedAtAction(
-                nameof(GetById),
-                new { id = well.Id },
-                well);
-        }
+        var result = await service.CreateAsync(request, cancellationToken);
+        return CreatedAtAction(nameof(GetById), new { id = result.Id }, result);
     }
-    [Authorize(Roles = "Admin")]
+
+    [Authorize(Roles = UserRoles.Admin)]
     [HttpPut("{id:int}")]
-    public IActionResult Update(int id, Well updatedWell)
+    public async Task<IActionResult> Update(int id, WellRequest request, CancellationToken cancellationToken)
     {
-        lock (data.SyncRoot)
-        {
-            int index = data.Wells.FindIndex(w => w.Id == id);
-
-            if (index == -1)
-                return NotFound("Скважина не найдена.");
-
-            updatedWell.Id = id;
-            data.Wells[index] = updatedWell;
-
-            return NoContent();
-        }
+        await service.UpdateAsync(id, request, cancellationToken);
+        return NoContent();
     }
-    [Authorize(Roles = "Admin")]
+
+    [Authorize(Roles = UserRoles.Admin)]
     [HttpDelete("{id:int}")]
-    public IActionResult Delete(int id)
+    public async Task<IActionResult> Delete(int id, CancellationToken cancellationToken)
     {
-        lock (data.SyncRoot)
-        {
-            var well = data.Wells.FirstOrDefault(w => w.Id == id);
-
-            if (well == null)
-                return NotFound("Скважина не найдена.");
-
-            if (data.Measurements.Any(m => m.WellId == id))
-            {
-                return Conflict(
-                    "Сначала удалите измерения этой скважины.");
-            }
-
-            data.Wells.Remove(well);
-
-            return NoContent();
-        }
+        await service.DeleteAsync(id, cancellationToken);
+        return NoContent();
     }
 }

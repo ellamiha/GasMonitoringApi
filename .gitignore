@@ -4,5 +4,11 @@ obj/
 .vscode/
 .DS_Store
 artifacts/
+App_Data/
+*.db
+*.db-shm
+*.db-wal
+*.key
 *.user
 *.suo
+postman/*environment*.json

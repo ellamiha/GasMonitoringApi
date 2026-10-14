@@ -1,9 +1,9 @@
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
-using GasMonitoringApi.Auth;
+using GasMonitoringApi.Dtos;
+using GasMonitoringApi.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.IdentityModel.Tokens;
 
 namespace GasMonitoringApi.Controllers;
 
@@ -11,56 +11,33 @@ namespace GasMonitoringApi.Controllers;
 [Route("api/auth")]
 public class AuthController : ControllerBase
 {
+    private readonly AuthService service;
+
+    public AuthController(AuthService service)
+    {
+        this.service = service;
+    }
+
+    [AllowAnonymous]
+    [HttpPost("register")]
+    public async Task<ActionResult<UserResponse>> Register(RegisterRequest request, CancellationToken cancellationToken)
+    {
+        return StatusCode(201, await service.RegisterAsync(request, cancellationToken));
+    }
+
     [AllowAnonymous]
     [HttpPost("login")]
-    public IActionResult Login(LoginRequest request)
+    public async Task<ActionResult<LoginResponse>> Login(LoginRequest request, CancellationToken cancellationToken)
     {
-        string role;
+        return Ok(await service.LoginAsync(request, cancellationToken));
+    }
 
-        if (request.Login == "admin" &&
-            request.Password == "admin123")
-        {
-            role = "Admin";
-        }
-        else if (request.Login == "user" &&
-                 request.Password == "user123")
-        {
-            role = "User";
-        }
-        else
-        {
-            return Unauthorized("Неверный логин или пароль.");
-        }
-
-        var claims = new[]
-        {
-            new Claim("name", request.Login),
-            new Claim("role", role),
-            new Claim(
-                JwtRegisteredClaimNames.Jti,
-                Guid.NewGuid().ToString())
-        };
-
-        var expiresAt = DateTime.UtcNow.AddHours(2);
-
-        var token = new JwtSecurityToken(
-            issuer: AuthSettings.Issuer,
-            audience: AuthSettings.Audience,
-            claims: claims,
-            notBefore: DateTime.UtcNow,
-            expires: expiresAt,
-            signingCredentials: new SigningCredentials(
-                AuthSettings.SigningKey,
-                SecurityAlgorithms.HmacSha256)
-        );
-
-        return Ok(new
-        {
-            accessToken = new JwtSecurityTokenHandler()
-                .WriteToken(token),
-            login = request.Login,
-            role,
-            expiresAt
-        });
+    [Authorize]
+    [HttpGet("me")]
+    public async Task<ActionResult<UserResponse>> GetProfile(CancellationToken cancellationToken)
+    {
+        if (!int.TryParse(User.FindFirstValue(JwtRegisteredClaimNames.Sub), out var userId))
+            return Unauthorized();
+        return Ok(await service.GetUserAsync(userId, cancellationToken));
     }
 }

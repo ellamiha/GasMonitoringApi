@@ -1,117 +1,37 @@
-
-using GasMonitoringApi.Data;
+using GasMonitoringApi.Dtos;
+using GasMonitoringApi.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace GasMonitoringApi.Controllers;
+
 [Authorize]
 [ApiController]
 [Route("api/reports")]
 public class ReportsController : ControllerBase
 {
-    private readonly AppData data;
+    private readonly ReportService service;
 
-    public ReportsController(AppData data)
+    public ReportsController(ReportService service)
     {
-        this.data = data;
+        this.service = service;
     }
 
     [HttpGet("journal")]
-    public IActionResult GetJournal()
+    public async Task<ActionResult<List<JournalResponse>>> GetJournal(CancellationToken cancellationToken)
     {
-        lock (data.SyncRoot)
-        {
-            var result = data.Measurements
-                .Join(
-                    data.Wells,
-                    m => m.WellId,
-                    w => w.Id,
-                    (m, w) => new
-                    {
-                        MeasurementId = m.Id,
-                        WellName = w.Name,
-                        m.RecordedAt,
-                        m.Pressure,
-                        m.Flow
-                    })
-                .OrderByDescending(x => x.RecordedAt)
-                .ToList();
-
-            return Ok(result);
-        }
+        return Ok(await service.GetJournalAsync(cancellationToken));
     }
 
     [HttpGet("pressure-alerts")]
-    public IActionResult GetPressureAlerts()
+    public async Task<ActionResult<List<PressureAlertResponse>>> GetPressureAlerts(CancellationToken cancellationToken)
     {
-        lock (data.SyncRoot)
-        {
-            var result = data.Measurements
-                .Join(
-                    data.Wells,
-                    m => m.WellId,
-                    w => w.Id,
-                    (m, w) => new
-                    {
-                        Measurement = m,
-                        Well = w
-                    })
-                .Where(x => x.Measurement.IsPressureExceeded(
-                    x.Well.MaxPressure))
-                .Select(x => new
-                {
-                    MeasurementId = x.Measurement.Id,
-                    WellName = x.Well.Name,
-                    x.Measurement.RecordedAt,
-                    x.Measurement.Pressure,
-                    x.Well.MaxPressure,
-                    Excess = Math.Round(
-                        x.Measurement.Pressure - x.Well.MaxPressure,
-                        2)
-                })
-                .ToList();
-
-            return Ok(result);
-        }
+        return Ok(await service.GetPressureAlertsAsync(cancellationToken));
     }
 
     [HttpGet("summary")]
-    public IActionResult GetSummary()
+    public async Task<ActionResult<List<SummaryResponse>>> GetSummary(CancellationToken cancellationToken)
     {
-        lock (data.SyncRoot)
-        {
-            var result = data.Wells
-                .GroupJoin(
-                    data.Measurements,
-                    w => w.Id,
-                    m => m.WellId,
-                    (w, measurements) => new
-                    {
-                        Well = w,
-                        LastMeasurement = measurements
-                            .OrderByDescending(m => m.RecordedAt)
-                            .ThenByDescending(m => m.Id)
-                            .FirstOrDefault()
-                    })
-                .Select(x => new
-                {
-                    WellId = x.Well.Id,
-                    WellName = x.Well.Name,
-                    x.Well.PlannedFlow,
-                    RecordedAt = x.LastMeasurement?.RecordedAt,
-                    ActualFlow = x.LastMeasurement?.Flow,
-                    PlanPercent = x.LastMeasurement == null
-                        ? (double?)null
-                        : x.Well.CalculatePlanPercent(
-                            x.LastMeasurement.Flow),
-                    PressureExceeded = x.LastMeasurement == null
-                        ? (bool?)null
-                        : x.LastMeasurement.IsPressureExceeded(
-                            x.Well.MaxPressure)
-                })
-                .ToList();
-
-            return Ok(result);
-        }
+        return Ok(await service.GetSummaryAsync(cancellationToken));
     }
 }
