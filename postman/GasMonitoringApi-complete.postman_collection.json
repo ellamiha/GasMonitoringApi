@@ -1,0 +1,2460 @@
+{
+  "info": {
+    "_postman_id": "8b67d061-11f5-408b-814f-32ffaed6ea03",
+    "name": "GasMonitoringApi — полная проверка",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "description": "Коллекция для текущего GasMonitoringApi. Запускать целиком и по порядку, 1 итерация. Создаёт отдельную скважину и измерение, проверяет CRUD, три отчёта и права, затем удаляет свои записи. Исходные записи не изменяет. baseUrl = http://localhost:5052. Токены сохраняются отдельно после входа. Не задавайте одноимённые переменные окружения: они перекрывают переменные коллекции."
+  },
+  "auth": {
+    "type": "noauth"
+  },
+  "item": [
+    {
+      "name": "1. Вход и основные права",
+      "item": [
+        {
+          "name": "01 Вход пользователя",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "",
+                  "pm.collectionVariables.unset(\"userToken\");",
+                  "pm.collectionVariables.unset(\"adminToken\");",
+                  "pm.collectionVariables.set(\"testWellName\", \"Postman \" + Date.now());"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
+                  "const data = pm.response.json();",
+                  "pm.test(\"Правильная роль и непустой токен\", function () { pm.expect(data.role === \"User\" && data.login === \"user\" && typeof data.accessToken === \"string\" && data.accessToken.length > 0).to.eql(true); });",
+                  "if (pm.response.code === 200 && data.role === \"User\" && data.accessToken) pm.collectionVariables.set(\"userToken\", data.accessToken);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "auth": {
+              "type": "noauth"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "login"
+              ]
+            },
+            "description": "Ожидаемый HTTP-статус: 200.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"login\": \"user\",\n  \"password\": \"user123\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "02 Вход администратора",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "",
+                  "pm.collectionVariables.unset(\"adminToken\");"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
+                  "const data = pm.response.json();",
+                  "pm.test(\"Правильная роль и непустой токен\", function () { pm.expect(data.role === \"Admin\" && data.login === \"admin\" && typeof data.accessToken === \"string\" && data.accessToken.length > 0).to.eql(true); });",
+                  "if (pm.response.code === 200 && data.role === \"Admin\" && data.accessToken) pm.collectionVariables.set(\"adminToken\", data.accessToken);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "auth": {
+              "type": "noauth"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "login"
+              ]
+            },
+            "description": "Ожидаемый HTTP-статус: 200.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"login\": \"admin\",\n  \"password\": \"admin123\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "03 Сводка без токена 401",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 401\", function () { pm.response.to.have.status(401); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "auth": {
+              "type": "noauth"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/reports/summary",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "reports",
+                "summary"
+              ]
+            },
+            "description": "Ожидаемый HTTP-статус: 401."
+          },
+          "response": []
+        },
+        {
+          "name": "04 Сводка пользователя 200",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.collectionVariables.get(\"userToken\")) throw new Error(\"Нет userToken: запустите коллекцию с начала.\");"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
+                  "const data = pm.response.json();",
+                  "pm.test(\"Содержимое ответа соответствует ожиданиям\", function () { pm.expect(Array.isArray(data)).to.eql(true); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{userToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/reports/summary",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "reports",
+                "summary"
+              ]
+            },
+            "description": "Ожидаемый HTTP-статус: 200."
+          },
+          "response": []
+        },
+        {
+          "name": "05 Добавление пользователем 403",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.collectionVariables.get(\"userToken\")) throw new Error(\"Нет userToken: запустите коллекцию с начала.\");"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 403\", function () { pm.response.to.have.status(403); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{userToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/wells",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "wells"
+              ]
+            },
+            "description": "Ожидаемый HTTP-статус: 403.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"{{testWellName}}\",\n  \"maxPressure\": 12,\n  \"plannedFlow\": 100\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "06 Неверный пароль 401",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 401\", function () { pm.response.to.have.status(401); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "auth": {
+              "type": "noauth"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "login"
+              ]
+            },
+            "description": "Ожидаемый HTTP-статус: 401.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"login\": \"user\",\n  \"password\": \"wrong-password\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "07 Добавление без токена 401",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 401\", function () { pm.response.to.have.status(401); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "auth": {
+              "type": "noauth"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/wells",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "wells"
+              ]
+            },
+            "description": "Ожидаемый HTTP-статус: 401.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"{{testWellName}}\",\n  \"maxPressure\": 12,\n  \"plannedFlow\": 100\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "2. Скважины: создание, чтение, изменение",
+      "item": [
+        {
+          "name": "08 Все скважины без входа",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
+                  "const data = pm.response.json();",
+                  "pm.test(\"Содержимое ответа соответствует ожиданиям\", function () { pm.expect(Array.isArray(data)).to.eql(true); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "auth": {
+              "type": "noauth"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/wells",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "wells"
+              ]
+            },
+            "description": "Ожидаемый HTTP-статус: 200."
+          },
+          "response": []
+        },
+        {
+          "name": "09 Добавление администратором",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.collectionVariables.get(\"adminToken\")) throw new Error(\"Нет adminToken: запустите коллекцию с начала.\");",
+                  "pm.collectionVariables.unset(\"wellId\");",
+                  "pm.collectionVariables.unset(\"measurementId\");"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 201\", function () { pm.response.to.have.status(201); });",
+                  "const data = pm.response.json();",
+                  "pm.test(\"Содержимое ответа соответствует ожиданиям\", function () { pm.expect(Number.isInteger(data.id) && data.id > 0 && data.name === pm.collectionVariables.get(\"testWellName\") && data.maxPressure === 12 && data.plannedFlow === 100).to.eql(true); });",
+                  "if (pm.response.code === 201 && Number.isInteger(data.id)) pm.collectionVariables.set(\"wellId\", data.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/wells",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "wells"
+              ]
+            },
+            "description": "Ожидаемый HTTP-статус: 201.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"{{testWellName}}\",\n  \"maxPressure\": 12,\n  \"plannedFlow\": 100\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "10 Получение созданной скважины",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.collectionVariables.get(\"wellId\")) throw new Error(\"Нет wellId: запустите коллекцию с начала.\");"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
+                  "const data = pm.response.json();",
+                  "pm.test(\"Содержимое ответа соответствует ожиданиям\", function () { pm.expect(data.id === Number(pm.collectionVariables.get(\"wellId\")) && data.maxPressure === 12 && data.plannedFlow === 100).to.eql(true); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "auth": {
+              "type": "noauth"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/wells/{{wellId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "wells",
+                "{{wellId}}"
+              ]
+            },
+            "description": "Ожидаемый HTTP-статус: 200."
+          },
+          "response": []
+        },
+        {
+          "name": "11 Сводка скважины без измерений",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.collectionVariables.get(\"userToken\")) throw new Error(\"Нет userToken: запустите коллекцию с начала.\");"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
+                  "const row = pm.response.json().find(x => x.wellId === Number(pm.collectionVariables.get(\"wellId\")));",
+                  "pm.test(\"У новой скважины нет измерений\", function () { pm.expect(!!row && row.actualFlow === null && row.planPercent === null && row.pressureExceeded === null && row.recordedAt === null).to.eql(true); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{userToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/reports/summary",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "reports",
+                "summary"
+              ]
+            },
+            "description": "Ожидаемый HTTP-статус: 200."
+          },
+          "response": []
+        },
+        {
+          "name": "12 Изменение пользователем 403",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.collectionVariables.get(\"userToken\")) throw new Error(\"Нет userToken: запустите коллекцию с начала.\");",
+                  "if (!pm.collectionVariables.get(\"wellId\")) throw new Error(\"Нет wellId: запустите коллекцию с начала.\");"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 403\", function () { pm.response.to.have.status(403); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{userToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/wells/{{wellId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "wells",
+                "{{wellId}}"
+              ]
+            },
+            "description": "Ожидаемый HTTP-статус: 403.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"{{testWellName}}\",\n  \"maxPressure\": 10,\n  \"plannedFlow\": 120\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "13 Удаление пользователем 403",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.collectionVariables.get(\"userToken\")) throw new Error(\"Нет userToken: запустите коллекцию с начала.\");",
+                  "if (!pm.collectionVariables.get(\"wellId\")) throw new Error(\"Нет wellId: запустите коллекцию с начала.\");"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 403\", function () { pm.response.to.have.status(403); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{userToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/wells/{{wellId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "wells",
+                "{{wellId}}"
+              ]
+            },
+            "description": "Ожидаемый HTTP-статус: 403."
+          },
+          "response": []
+        },
+        {
+          "name": "14 Изменение администратором",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.collectionVariables.get(\"adminToken\")) throw new Error(\"Нет adminToken: запустите коллекцию с начала.\");",
+                  "if (!pm.collectionVariables.get(\"wellId\")) throw new Error(\"Нет wellId: запустите коллекцию с начала.\");"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 204\", function () { pm.response.to.have.status(204); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/wells/{{wellId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "wells",
+                "{{wellId}}"
+              ]
+            },
+            "description": "Ожидаемый HTTP-статус: 204.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"{{testWellName}}\",\n  \"maxPressure\": 10,\n  \"plannedFlow\": 120\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "15 Проверка изменения скважины",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.collectionVariables.get(\"wellId\")) throw new Error(\"Нет wellId: запустите коллекцию с начала.\");"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
+                  "const data = pm.response.json();",
+                  "pm.test(\"Содержимое ответа соответствует ожиданиям\", function () { pm.expect(data.maxPressure === 10 && data.plannedFlow === 120 && data.name === pm.collectionVariables.get(\"testWellName\")).to.eql(true); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "auth": {
+              "type": "noauth"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/wells/{{wellId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "wells",
+                "{{wellId}}"
+              ]
+            },
+            "description": "Ожидаемый HTTP-статус: 200."
+          },
+          "response": []
+        },
+        {
+          "name": "16 Некорректная скважина 400",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.collectionVariables.get(\"adminToken\")) throw new Error(\"Нет adminToken: запустите коллекцию с начала.\");"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 400\", function () { pm.response.to.have.status(400); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/wells",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "wells"
+              ]
+            },
+            "description": "Ожидаемый HTTP-статус: 400.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"\",\n  \"maxPressure\": -1,\n  \"plannedFlow\": 0\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "3. Измерения: создание и чтение",
+      "item": [
+        {
+          "name": "17 Все измерения без входа",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
+                  "const data = pm.response.json();",
+                  "pm.test(\"Содержимое ответа соответствует ожиданиям\", function () { pm.expect(Array.isArray(data)).to.eql(true); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "auth": {
+              "type": "noauth"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/measurements",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "measurements"
+              ]
+            },
+            "description": "Ожидаемый HTTP-статус: 200."
+          },
+          "response": []
+        },
+        {
+          "name": "18 Измерение без токена 401",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.collectionVariables.get(\"wellId\")) throw new Error(\"Нет wellId: запустите коллекцию с начала.\");"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 401\", function () { pm.response.to.have.status(401); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "auth": {
+              "type": "noauth"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/measurements",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "measurements"
+              ]
+            },
+            "description": "Ожидаемый HTTP-статус: 401.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"wellId\": {{wellId}},\n  \"recordedAt\": \"2026-01-01T12:00:00Z\",\n  \"pressure\": 13,\n  \"flow\": 90\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "19 Измерение от пользователя 403",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.collectionVariables.get(\"userToken\")) throw new Error(\"Нет userToken: запустите коллекцию с начала.\");",
+                  "if (!pm.collectionVariables.get(\"wellId\")) throw new Error(\"Нет wellId: запустите коллекцию с начала.\");"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 403\", function () { pm.response.to.have.status(403); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{userToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/measurements",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "measurements"
+              ]
+            },
+            "description": "Ожидаемый HTTP-статус: 403.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"wellId\": {{wellId}},\n  \"recordedAt\": \"2026-01-01T12:00:00Z\",\n  \"pressure\": 13,\n  \"flow\": 90\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "20 Добавление измерения администратором",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.collectionVariables.get(\"adminToken\")) throw new Error(\"Нет adminToken: запустите коллекцию с начала.\");",
+                  "if (!pm.collectionVariables.get(\"wellId\")) throw new Error(\"Нет wellId: запустите коллекцию с начала.\");",
+                  "pm.collectionVariables.unset(\"measurementId\");"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 201\", function () { pm.response.to.have.status(201); });",
+                  "const data = pm.response.json();",
+                  "pm.test(\"Содержимое ответа соответствует ожиданиям\", function () { pm.expect(Number.isInteger(data.id) && data.id > 0 && data.wellId === Number(pm.collectionVariables.get(\"wellId\")) && data.pressure === 13 && data.flow === 90).to.eql(true); });",
+                  "if (pm.response.code === 201 && Number.isInteger(data.id)) pm.collectionVariables.set(\"measurementId\", data.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/measurements",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "measurements"
+              ]
+            },
+            "description": "Ожидаемый HTTP-статус: 201.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"wellId\": {{wellId}},\n  \"recordedAt\": \"2026-01-01T12:00:00Z\",\n  \"pressure\": 13,\n  \"flow\": 90\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "21 Получение созданного измерения",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.collectionVariables.get(\"measurementId\")) throw new Error(\"Нет measurementId: запустите коллекцию с начала.\");"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
+                  "const data = pm.response.json();",
+                  "pm.test(\"Содержимое ответа соответствует ожиданиям\", function () { pm.expect(data.id === Number(pm.collectionVariables.get(\"measurementId\")) && data.wellId === Number(pm.collectionVariables.get(\"wellId\")) && data.pressure === 13 && data.flow === 90).to.eql(true); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "auth": {
+              "type": "noauth"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/measurements/{{measurementId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "measurements",
+                "{{measurementId}}"
+              ]
+            },
+            "description": "Ожидаемый HTTP-статус: 200."
+          },
+          "response": []
+        },
+        {
+          "name": "22 Некорректное измерение 400",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.collectionVariables.get(\"adminToken\")) throw new Error(\"Нет adminToken: запустите коллекцию с начала.\");",
+                  "if (!pm.collectionVariables.get(\"wellId\")) throw new Error(\"Нет wellId: запустите коллекцию с начала.\");"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 400\", function () { pm.response.to.have.status(400); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/measurements",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "measurements"
+              ]
+            },
+            "description": "Ожидаемый HTTP-статус: 400.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"wellId\": {{wellId}},\n  \"recordedAt\": \"2026-01-01T12:00:00Z\",\n  \"pressure\": -1,\n  \"flow\": 90\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "4. Отчёты: объединение данных и бизнес-логика",
+      "item": [
+        {
+          "name": "23 Журнал без токена 401",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 401\", function () { pm.response.to.have.status(401); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "auth": {
+              "type": "noauth"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/reports/journal",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "reports",
+                "journal"
+              ]
+            },
+            "description": "Ожидаемый HTTP-статус: 401."
+          },
+          "response": []
+        },
+        {
+          "name": "24 Превышения без токена 401",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 401\", function () { pm.response.to.have.status(401); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "auth": {
+              "type": "noauth"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/reports/pressure-alerts",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "reports",
+                "pressure-alerts"
+              ]
+            },
+            "description": "Ожидаемый HTTP-статус: 401."
+          },
+          "response": []
+        },
+        {
+          "name": "25 Журнал пользователя",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.collectionVariables.get(\"userToken\")) throw new Error(\"Нет userToken: запустите коллекцию с начала.\");"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
+                  "const row = pm.response.json().find(x => x.measurementId === Number(pm.collectionVariables.get(\"measurementId\")));",
+                  "pm.test(\"Измерение объединено с названием скважины\", function () { pm.expect(!!row && row.wellName === pm.collectionVariables.get(\"testWellName\") && row.pressure === 13 && row.flow === 90).to.eql(true); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{userToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/reports/journal",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "reports",
+                "journal"
+              ]
+            },
+            "description": "Ожидаемый HTTP-статус: 200."
+          },
+          "response": []
+        },
+        {
+          "name": "26 Превышения давления пользователя",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.collectionVariables.get(\"userToken\")) throw new Error(\"Нет userToken: запустите коллекцию с начала.\");"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
+                  "const row = pm.response.json().find(x => x.measurementId === Number(pm.collectionVariables.get(\"measurementId\")));",
+                  "pm.test(\"Давление 13, предел 10, превышение 3\", function () { pm.expect(!!row && row.wellName === pm.collectionVariables.get(\"testWellName\") && row.pressure === 13 && row.maxPressure === 10 && row.excess === 3).to.eql(true); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{userToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/reports/pressure-alerts",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "reports",
+                "pressure-alerts"
+              ]
+            },
+            "description": "Ожидаемый HTTP-статус: 200."
+          },
+          "response": []
+        },
+        {
+          "name": "27 Сводка пользователя: расчёт выполнения плана",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.collectionVariables.get(\"userToken\")) throw new Error(\"Нет userToken: запустите коллекцию с начала.\");"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
+                  "const row = pm.response.json().find(x => x.wellId === Number(pm.collectionVariables.get(\"wellId\")));",
+                  "pm.test(\"План выполнен на 75%, давление превышено\", function () { pm.expect(!!row && row.actualFlow === 90 && row.plannedFlow === 120 && row.planPercent === 75 && row.pressureExceeded === true).to.eql(true); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{userToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/reports/summary",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "reports",
+                "summary"
+              ]
+            },
+            "description": "Ожидаемый HTTP-статус: 200."
+          },
+          "response": []
+        },
+        {
+          "name": "28 Сводка администратора",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.collectionVariables.get(\"adminToken\")) throw new Error(\"Нет adminToken: запустите коллекцию с начала.\");"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
+                  "const row = pm.response.json().find(x => x.wellId === Number(pm.collectionVariables.get(\"wellId\")));",
+                  "pm.test(\"План выполнен на 75%, давление превышено\", function () { pm.expect(!!row && row.actualFlow === 90 && row.plannedFlow === 120 && row.planPercent === 75 && row.pressureExceeded === true).to.eql(true); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/reports/summary",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "reports",
+                "summary"
+              ]
+            },
+            "description": "Ожидаемый HTTP-статус: 200."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "5. Изменение измерения и повторная проверка отчётов",
+      "item": [
+        {
+          "name": "29 Изменение измерения пользователем 403",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.collectionVariables.get(\"userToken\")) throw new Error(\"Нет userToken: запустите коллекцию с начала.\");",
+                  "if (!pm.collectionVariables.get(\"wellId\")) throw new Error(\"Нет wellId: запустите коллекцию с начала.\");",
+                  "if (!pm.collectionVariables.get(\"measurementId\")) throw new Error(\"Нет measurementId: запустите коллекцию с начала.\");"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 403\", function () { pm.response.to.have.status(403); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{userToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/measurements/{{measurementId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "measurements",
+                "{{measurementId}}"
+              ]
+            },
+            "description": "Ожидаемый HTTP-статус: 403.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"wellId\": {{wellId}},\n  \"recordedAt\": \"2026-01-01T12:00:00Z\",\n  \"pressure\": 10,\n  \"flow\": 120\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "30 Удаление измерения пользователем 403",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.collectionVariables.get(\"userToken\")) throw new Error(\"Нет userToken: запустите коллекцию с начала.\");",
+                  "if (!pm.collectionVariables.get(\"measurementId\")) throw new Error(\"Нет measurementId: запустите коллекцию с начала.\");"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 403\", function () { pm.response.to.have.status(403); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{userToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/measurements/{{measurementId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "measurements",
+                "{{measurementId}}"
+              ]
+            },
+            "description": "Ожидаемый HTTP-статус: 403."
+          },
+          "response": []
+        },
+        {
+          "name": "31 Изменение измерения администратором",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.collectionVariables.get(\"adminToken\")) throw new Error(\"Нет adminToken: запустите коллекцию с начала.\");",
+                  "if (!pm.collectionVariables.get(\"wellId\")) throw new Error(\"Нет wellId: запустите коллекцию с начала.\");",
+                  "if (!pm.collectionVariables.get(\"measurementId\")) throw new Error(\"Нет measurementId: запустите коллекцию с начала.\");"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 204\", function () { pm.response.to.have.status(204); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/measurements/{{measurementId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "measurements",
+                "{{measurementId}}"
+              ]
+            },
+            "description": "Ожидаемый HTTP-статус: 204.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"wellId\": {{wellId}},\n  \"recordedAt\": \"2026-01-01T12:00:00Z\",\n  \"pressure\": 10,\n  \"flow\": 120\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "32 Проверка изменения измерения",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.collectionVariables.get(\"measurementId\")) throw new Error(\"Нет measurementId: запустите коллекцию с начала.\");"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
+                  "const data = pm.response.json();",
+                  "pm.test(\"Содержимое ответа соответствует ожиданиям\", function () { pm.expect(data.pressure === 10 && data.flow === 120 && data.wellId === Number(pm.collectionVariables.get(\"wellId\"))).to.eql(true); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "auth": {
+              "type": "noauth"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/measurements/{{measurementId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "measurements",
+                "{{measurementId}}"
+              ]
+            },
+            "description": "Ожидаемый HTTP-статус: 200."
+          },
+          "response": []
+        },
+        {
+          "name": "33 Пограничное давление не считается превышением",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.collectionVariables.get(\"userToken\")) throw new Error(\"Нет userToken: запустите коллекцию с начала.\");"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
+                  "const data = pm.response.json();",
+                  "pm.test(\"Содержимое ответа соответствует ожиданиям\", function () { pm.expect(Array.isArray(data) && !data.some(x => x.measurementId === Number(pm.collectionVariables.get(\"measurementId\")))).to.eql(true); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{userToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/reports/pressure-alerts",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "reports",
+                "pressure-alerts"
+              ]
+            },
+            "description": "Ожидаемый HTTP-статус: 200."
+          },
+          "response": []
+        },
+        {
+          "name": "34 Сводка после изменения: 100% без превышения",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.collectionVariables.get(\"userToken\")) throw new Error(\"Нет userToken: запустите коллекцию с начала.\");"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
+                  "const row = pm.response.json().find(x => x.wellId === Number(pm.collectionVariables.get(\"wellId\")));",
+                  "pm.test(\"План 100%, давление в пределах нормы\", function () { pm.expect(!!row && row.planPercent === 100 && row.actualFlow === 120 && row.pressureExceeded === false).to.eql(true); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{userToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/reports/summary",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "reports",
+                "summary"
+              ]
+            },
+            "description": "Ожидаемый HTTP-статус: 200."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "6. Удаление тестовых записей и ошибки связей",
+      "item": [
+        {
+          "name": "35 Удаление скважины с измерением 409",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.collectionVariables.get(\"adminToken\")) throw new Error(\"Нет adminToken: запустите коллекцию с начала.\");",
+                  "if (!pm.collectionVariables.get(\"wellId\")) throw new Error(\"Нет wellId: запустите коллекцию с начала.\");"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 409\", function () { pm.response.to.have.status(409); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/wells/{{wellId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "wells",
+                "{{wellId}}"
+              ]
+            },
+            "description": "Ожидаемый HTTP-статус: 409."
+          },
+          "response": []
+        },
+        {
+          "name": "36 Удаление измерения администратором",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.collectionVariables.get(\"adminToken\")) throw new Error(\"Нет adminToken: запустите коллекцию с начала.\");",
+                  "if (!pm.collectionVariables.get(\"measurementId\")) throw new Error(\"Нет measurementId: запустите коллекцию с начала.\");"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 204\", function () { pm.response.to.have.status(204); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/measurements/{{measurementId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "measurements",
+                "{{measurementId}}"
+              ]
+            },
+            "description": "Ожидаемый HTTP-статус: 204."
+          },
+          "response": []
+        },
+        {
+          "name": "37 Удалённое измерение 404",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.collectionVariables.get(\"measurementId\")) throw new Error(\"Нет measurementId: запустите коллекцию с начала.\");"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 404\", function () { pm.response.to.have.status(404); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "auth": {
+              "type": "noauth"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/measurements/{{measurementId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "measurements",
+                "{{measurementId}}"
+              ]
+            },
+            "description": "Ожидаемый HTTP-статус: 404."
+          },
+          "response": []
+        },
+        {
+          "name": "38 Изменение удалённого измерения 404",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.collectionVariables.get(\"adminToken\")) throw new Error(\"Нет adminToken: запустите коллекцию с начала.\");",
+                  "if (!pm.collectionVariables.get(\"wellId\")) throw new Error(\"Нет wellId: запустите коллекцию с начала.\");",
+                  "if (!pm.collectionVariables.get(\"measurementId\")) throw new Error(\"Нет measurementId: запустите коллекцию с начала.\");"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 404\", function () { pm.response.to.have.status(404); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/measurements/{{measurementId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "measurements",
+                "{{measurementId}}"
+              ]
+            },
+            "description": "Ожидаемый HTTP-статус: 404.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"wellId\": {{wellId}},\n  \"recordedAt\": \"2026-01-01T12:00:00Z\",\n  \"pressure\": 10,\n  \"flow\": 120\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "39 Повторное удаление измерения 404",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.collectionVariables.get(\"adminToken\")) throw new Error(\"Нет adminToken: запустите коллекцию с начала.\");",
+                  "if (!pm.collectionVariables.get(\"measurementId\")) throw new Error(\"Нет measurementId: запустите коллекцию с начала.\");"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 404\", function () { pm.response.to.have.status(404); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/measurements/{{measurementId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "measurements",
+                "{{measurementId}}"
+              ]
+            },
+            "description": "Ожидаемый HTTP-статус: 404."
+          },
+          "response": []
+        },
+        {
+          "name": "40 Удаление скважины администратором",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.collectionVariables.get(\"adminToken\")) throw new Error(\"Нет adminToken: запустите коллекцию с начала.\");",
+                  "if (!pm.collectionVariables.get(\"wellId\")) throw new Error(\"Нет wellId: запустите коллекцию с начала.\");"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 204\", function () { pm.response.to.have.status(204); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/wells/{{wellId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "wells",
+                "{{wellId}}"
+              ]
+            },
+            "description": "Ожидаемый HTTP-статус: 204."
+          },
+          "response": []
+        },
+        {
+          "name": "41 Удалённая скважина 404",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.collectionVariables.get(\"wellId\")) throw new Error(\"Нет wellId: запустите коллекцию с начала.\");"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 404\", function () { pm.response.to.have.status(404); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "auth": {
+              "type": "noauth"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/wells/{{wellId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "wells",
+                "{{wellId}}"
+              ]
+            },
+            "description": "Ожидаемый HTTP-статус: 404."
+          },
+          "response": []
+        },
+        {
+          "name": "42 Изменение удалённой скважины 404",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.collectionVariables.get(\"adminToken\")) throw new Error(\"Нет adminToken: запустите коллекцию с начала.\");",
+                  "if (!pm.collectionVariables.get(\"wellId\")) throw new Error(\"Нет wellId: запустите коллекцию с начала.\");"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 404\", function () { pm.response.to.have.status(404); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/wells/{{wellId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "wells",
+                "{{wellId}}"
+              ]
+            },
+            "description": "Ожидаемый HTTP-статус: 404.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"{{testWellName}}\",\n  \"maxPressure\": 10,\n  \"plannedFlow\": 120\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "43 Повторное удаление скважины 404",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.collectionVariables.get(\"adminToken\")) throw new Error(\"Нет adminToken: запустите коллекцию с начала.\");",
+                  "if (!pm.collectionVariables.get(\"wellId\")) throw new Error(\"Нет wellId: запустите коллекцию с начала.\");"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 404\", function () { pm.response.to.have.status(404); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/wells/{{wellId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "wells",
+                "{{wellId}}"
+              ]
+            },
+            "description": "Ожидаемый HTTP-статус: 404."
+          },
+          "response": []
+        },
+        {
+          "name": "44 Измерение для удалённой скважины 400",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.collectionVariables.get(\"adminToken\")) throw new Error(\"Нет adminToken: запустите коллекцию с начала.\");",
+                  "if (!pm.collectionVariables.get(\"wellId\")) throw new Error(\"Нет wellId: запустите коллекцию с начала.\");"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 400\", function () { pm.response.to.have.status(400); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/measurements",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "measurements"
+              ]
+            },
+            "description": "Ожидаемый HTTP-статус: 400.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"wellId\": {{wellId}},\n  \"recordedAt\": \"2026-01-01T12:00:00Z\",\n  \"pressure\": 13,\n  \"flow\": 90\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "45 Тестовая скважина отсутствует в сводке",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.collectionVariables.get(\"userToken\")) throw new Error(\"Нет userToken: запустите коллекцию с начала.\");"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
+                  "const data = pm.response.json();",
+                  "pm.test(\"Содержимое ответа соответствует ожиданиям\", function () { pm.expect(Array.isArray(data) && !data.some(x => x.wellId === Number(pm.collectionVariables.get(\"wellId\")))).to.eql(true); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{userToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/reports/summary",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "reports",
+                "summary"
+              ]
+            },
+            "description": "Ожидаемый HTTP-статус: 200."
+          },
+          "response": []
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:5052",
+      "type": "string"
+    },
+    {
+      "key": "userToken",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "adminToken",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "wellId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "measurementId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "testWellName",
+      "value": "",
+      "type": "string"
+    }
+  ]
+}

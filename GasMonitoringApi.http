@@ -1,0 +1,6 @@
+@GasMonitoringApi_HostAddress = http://localhost:5197
+
+GET {{GasMonitoringApi_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
